@@ -93,7 +93,43 @@ function login(req, res, next){
     res.status(200).json({token});
 }
 
+//REFRESH TOKEN (with rotation + roubo(steal) detetion)
+function refreshToken(req, res, next){
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) res.status(401).json({error: "Without refresh token"});
+
+    try {
+
+        const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+        const storedJti = redisClient.get(`refresh:${payload.id}`);
+        
+        if (!storedJti || storedJti != payload.jti) res.status(401).json({error: "Refresh token expired or already used"});
+
+        const newAccessToken =  generateAccessToken(payload);
+        const {token: newRefreshToken, jti: newJti} = generateRefreshToken(payload);
+
+        redisClient.setEx(`refresh:${payload.id}`, 7 * 24 * 60 * 60, newJti);
+
+        //Send new cookie
+        res.cookie('refreshToken', newRefreshToken,{
+            httpOnly: true,
+            secure: false,
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        res.status(200).json({accessToken: newAccessToken});
+
+    } catch (error) {
+        res.status(401).json({error: "Refresh token expired or invalid"})
+    }
+}
+
+
 app.post('/api/login', login);
+app.post('/api/refresh', refreshToken);
+
 
 
 
