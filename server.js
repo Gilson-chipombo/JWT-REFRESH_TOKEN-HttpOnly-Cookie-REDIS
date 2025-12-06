@@ -1,12 +1,12 @@
 const express = require('express');
 const helmet  = require('helmet');
+const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const dotenv  = require('dotenv');
 const cors    = require('cors');
 const redis   = require('redis');
 const {v4: uuidv4} = require('uuid');    
 const rateLimit = require('express-rate-limit');
-const { use } = require('react');
 
 dotenv.config();
 
