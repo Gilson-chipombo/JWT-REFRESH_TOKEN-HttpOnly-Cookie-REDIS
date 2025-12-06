@@ -141,6 +141,10 @@ function logout()
     res.json({message: "Logout success"});
 }
 
+function profile(req, res, next)
+{
+    res.status(200).json({success: "SUCCESS CHAMPIOM"});
+}
 
 
 app.post('/api/login', login);
