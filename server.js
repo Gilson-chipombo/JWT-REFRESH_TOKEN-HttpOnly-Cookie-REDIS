@@ -3,7 +3,10 @@ const helmet  = require('helmet');
 const jwt     = require('jsonwebtoken');
 const dotenv  = require('dotenv');
 const cors    = require('cors');
+const redis   = require('redis');
+const {v4: uuidv4} = require('uuid');    
 const rateLimit = require('express-rate-limit');
+const { use } = require('react');
 
 dotenv.config();
 
@@ -11,6 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const BCRYPT_SALT = parseInt(process.env.BCRYPT_SALT || '10');
 const JWT_SECRET  = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 const rateRequestLimit = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -23,12 +27,29 @@ app.use(helmet());
 app.use(rateRequestLimit);
 app.use(express.json({limit: '100kb'}));
 
-
+const users = [
+    { id: 1, number: "935626001", name: "Gilson", password: bcrypt.hashSync("12345", BCRYPT_SALT), role: "admin"}
+];
 
 function generateToken(user)
 {
     const payload = {id: user.id, name: user.name, number: user.name, role: user.role};
     return jwt.sign(payload, JWT_SECRET, {expiresIn: '15m'});
+}
+
+function generateAccessToken(user)
+{
+    const payload = {id: user.id, name: user.name, number: user.number, rele: user.role}
+    return jwt.sign(payload, JWT_SECRET, {expiresIn: '15m'});
+}
+
+function generateRefreshToken(user)
+{
+    const jti = uuidv4(); // ID unique for refresh token
+    const payload = {id: user.id, name: user.name, number: user.number, rele: user.role, jti}
+    const token = jwt.sign(payload, REFRESH_SECRET, {expiresIn: '7d'});
+
+    return {token, jti};
 }
 
 function auth(req, res, next)
@@ -48,7 +69,28 @@ function auth(req, res, next)
 }
 
 function login(req, res, next){
-    res.status(200).json({message: "Hello Campeao do CodeFast Africell"});
+    const {number, password} =  req.bdoy;
+    const users = users.find(u =>u.number === number);
+    
+
+    if (!user || !bcrypt.compareSync(password, user.password)) return res.status(401).json({error: "Invalid Credentials"});
+    
+    const token = generateAccessToken(user);
+    const {token: refreshToken, jti} = generateRefreshToken(user);
+
+    //Guarda refresh token em HttpOnly Cookie
+    redisClient.setEx(`refresh:${user.id}`, 7 * 24 * 60 * 60, jti);
+
+    //Envia refresh token em HttpOnly cookie
+
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: false,  // True em producao com HTTPS
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.status(200).json({token});
 }
 
 app.post('/api/login', login);
