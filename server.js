@@ -126,9 +126,27 @@ function refreshToken(req, res, next){
     }
 }
 
+function logout()
+{
+    const refreshToken =  req.cookies.refreshToken;
+
+    if (refreshToken){
+        try {
+            const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+            redisClient.del(`refresh:${payload.id}`);
+        } catch (error) {}
+    }
+
+    res.clearCookie('refreshToken', {httpOnly: true, sameSite: 'strict'});
+    res.json({message: "Logout success"});
+}
+
+
 
 app.post('/api/login', login);
-app.post('/api/refresh', refreshToken);
+app.post('/api/logout', logout);
+app.post('/api/refresh', auth, refreshToken);
+app.get('/api/profile', auth, profile);
 
 
 
